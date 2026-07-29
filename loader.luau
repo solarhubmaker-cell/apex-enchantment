@@ -1,106 +1,65 @@
-{
-    "name": "Apex EnchantmentUI",
-    "className": "DataModel",
-    "filePaths": ["default.project.json"],
-    "children": [
-        {
-            "name": "ReplicatedStorage",
-            "className": "ReplicatedStorage",
-            "children": [
-                {
-                    "name": "Apex EnchantmentUI",
-                    "className": "ModuleScript",
-                    "filePaths": ["src/init.lua"],
-                    "children": [
-                        {
-                            "name": "Init",
-                            "className": "ModuleScript",
-                            "filePaths": ["src/Init.lua"]
-                        },
-                        {
-                            "name": "components",
-                            "className": "Folder",
-                            "children": [
-                                {
-                                    "name": "KeySystem",
-                                    "className": "ModuleScript",
-                                    "filePaths": [
-                                        "src/components/KeySystem.lua"
-                                    ]
-                                },
-                                {
-                                    "name": "Notification",
-                                    "className": "ModuleScript",
-                                    "filePaths": [
-                                        "src/components/Notification.lua"
-                                    ]
-                                },
-                                {
-                                    "name": "popup",
-                                    "className": "ModuleScript",
-                                    "filePaths": [
-                                        "src/components/popup/init.lua"
-                                    ],
-                                    "children": [
-                                        {
-                                            "name": "Element",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/popup/Element.lua"
-                                            ]
-                                        },
-                                        {
-                                            "name": "Init",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/popup/Init.lua"
-                                            ]
-                                        }
-                                    ]
-                                },
-                                {
-                                    "name": "search",
-                                    "className": "ModuleScript",
-                                    "filePaths": [
-                                        "src/components/search/init.lua"
-                                    ],
-                                    "children": [
-                                        {
-                                            "name": "Icons",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/search/Icons.lua"
-                                            ]
-                                        },
-                                        {
-                                            "name": "Init",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/search/Init.lua"
-                                            ]
-                                        }
-                                    ]
-                                },
-                                {
-                                    "name": "ui",
-                                    "className": "Folder",
-                                    "children": [
-                                        {
-                                            "name": "Button",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/ui/Button.lua"
-                                            ]
-                                        },
-                                        {
-                                            "name": "Checkbox",
-                                            "className": "ModuleScript",
-                                            "filePaths": [
-                                                "src/components/ui/Checkbox.lua"
-                                            ]
-                                        },
-                                        {
-                                            "name": "Code",
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local MainFrame = Instance.new("Frame", ScreenGui)
+local Title = Instance.new("TextLabel", MainFrame)
+local ScrollingFrame = Instance.new("ScrollingFrame", MainFrame)
+local UIListLayout = Instance.new("UIListLayout", ScrollingFrame)
+
+MainFrame.Name = "ApexHub"
+MainFrame.Size = UDim2.new(0, 200, 0, 250)
+MainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Text = "Apex Enchantment"
+Title.TextColor3 = Color3.fromRGB(0, 255, 255)
+Title.TextSize = 16
+Title.Font = Enum.Font.GothamBold
+
+ScrollingFrame.Size = UDim2.new(1, 0, 1, -30)
+ScrollingFrame.Position = UDim2.new(0, 0, 0, 30)
+ScrollingFrame.BackgroundTransparency = 1
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 1.5, 0)
+ScrollingFrame.ScrollBarThickness = 2
+
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local function CreateToggleButton(name)
+    local Button = Instance.new("TextButton", ScrollingFrame)
+    Button.Size = UDim2.new(0.9, 0, 0, 35)
+    Button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Button.Text = name .. ": OFF"
+    Button.TextColor3 = Color3.new(1,1,1)
+    Button.Font = Enum.Font.Gotham
+    Button.TextSize = 14
+
+    Button.MouseButton1Click:Connect(function()
+        if Button.Text == name .. ": OFF" then
+            Button.Text = name .. ": ON"
+            Button.TextColor3 = Color3.new(0,1,0)
+        else
+            Button.Text = name .. ": OFF"
+            Button.TextColor3 = Color3.new(1,1,1)
+        end
+    end)
+end
+
+CreateToggleButton("Aimlock")
+CreateToggleButton("Player ESP")
+CreateToggleButton("Silent Aim")
+CreateToggleButton("Speed Hack")
+
+local SpeedBtn = Instance.new("TextButton", ScrollingFrame)
+SpeedBtn.Size = UDim2.new(0.9, 0, 0, 35)
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+SpeedBtn.Text = "Set Speed: 100"
+SpeedBtn.TextColor3 = Color3.new(1,1,1)
+SpeedBtn.Font = Enum.Font.Gotham
+SpeedBtn.TextSize = 14                                            "name": "Code",
                                             "className": "ModuleScript",
                                             "filePaths": [
                                                 "src/components/ui/Code.lua"
