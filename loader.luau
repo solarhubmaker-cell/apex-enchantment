@@ -1,3 +1,5 @@
+local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
+
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
@@ -39,7 +41,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	-- Creates a new tab titled Main
 	Main = Window:AddTab("Main"),
-	["Visual"] = Window:AddTab("Visual"),["Misc"] = Window:AddTab("Misc")["Settings"] = Window:AddTab("Settings"),
+	["Settings"] = Window:AddTab("Settings"),
 }
 
 -- Groupbox and Tabbox inherit the same functions
