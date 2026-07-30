@@ -740,3 +740,150 @@ ThemeManager:ApplyToTab(Tabs["UI Settings"])
 -- You can use the SaveManager:LoadAutoloadConfig() to load a config
 -- which has been marked to be one that auto loads!
 SaveManager:LoadAutoloadConfig()
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local ESPEnabled = false
+local ShowBox = false
+local ShowHealth = false
+local ShowName = false
+local ShowSkeleton = false
+local ESPColor = Color3.new(0, 1, 0)
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+
+    local function applyESP(character)
+        local hrp = character:WaitForChild("HumanoidRootPart", 5)
+        local humanoid = character:WaitForChild("Humanoid", 5)
+        if not hrp or not humanoid then return end
+
+        for _, child in ipairs(character:GetChildren()) do
+            if child.Name:find("ESP_") then child:Destroy() end
+        end
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "ESP_Box"
+        highlight.Adornee = character
+        highlight.FillTransparency = 1
+        highlight.OutlineColor = ESPColor
+        highlight.OutlineTransparency = 0
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Visible = ShowBox
+        highlight.Parent = character
+
+        local nameBillboard = Instance.new("BillboardGui")
+        nameBillboard.Name = "ESP_Name"
+        nameBillboard.AlwaysOnTop = true
+        nameBillboard.Size = UDim2.new(0, 200, 0, 30)
+        nameBillboard.StudsOffset = Vector3.new(0, 3.5, 0)
+        nameBillboard.Adornee = hrp
+        nameBillboard.Visible = ShowName
+        
+        local nameLabel = Instance.new("TextLabel", nameBillboard)
+        nameLabel.Size = UDim2.new(1, 0, 1, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Text = player.Name
+        nameLabel.TextColor3 = ESPColor
+        nameLabel.TextSize = 14
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextStrokeTransparency = 0.5
+        nameBillboard.Parent = hrp
+
+        local healthBillboard = Instance.new("BillboardGui")
+        healthBillboard.Name = "ESP_Health"
+        healthBillboard.AlwaysOnTop = true
+        healthBillboard.Size = UDim2.new(0, 10, 0, 50)
+        healthBillboard.StudsOffset = Vector3.new(-1.5, 0, 0)
+        healthBillboard.Adornee = hrp
+        healthBillboard.Visible = ShowHealth
+
+        local bg = Instance.new("Frame", healthBillboard)
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.new(0, 0, 0)
+
+        local bar = Instance.new("Frame", bg)
+        bar.BackgroundColor3 = Color3.new(0, 1, 0)
+        bar.Size = UDim2.new(1, 0, 1, 0)
+        bar.AnchorPoint = Vector2.new(0, 1)
+        bar.Position = UDim2.new(0, 0, 1, 0)
+        healthBillboard.Parent = hrp
+
+        local skeletonParts = {}
+        local joints = {
+            {"Head", "UpperTorso"},
+            {"UpperTorso", "LowerTorso"},
+            {"UpperTorso", "LeftUpperArm"},
+            {"LeftUpperArm", "LeftLowerArm"},
+            {"UpperTorso", "RightUpperArm"},
+            {"RightUpperArm", "RightLowerArm"},
+            {"LowerTorso", "LeftUpperLeg"},
+            {"LeftUpperLeg", "LeftLowerLeg"},
+            {"LowerTorso", "RightUpperLeg"},
+            {"RightUpperLeg", "RightLowerLeg"}
+        }
+
+        for _, joint in ipairs(joints) do
+            local line = Instance.new("Part")
+            line.Name = "ESP_Skeleton"
+            line.Size = Vector3.new(0.2, 0.2, 1)
+            line.Anchored = true
+            line.CanCollide = false
+            line.BrickColor = BrickColor.new(ESPColor)
+            line.Material = Enum.Material.Neon
+            line.Transparency = 0.3
+            line.Visible = ShowSkeleton
+            line.Parent = character
+            table.insert(skeletonParts, {line, joint[1], joint[2]})
+        end
+
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            if not character:IsDescendant(workspace) or humanoid.Health <= 0 then
+                for _, child in ipairs(character:GetChildren()) do
+                    if child.Name:find("ESP_") then child:Destroy() end
+                end
+                connection:Disconnect()
+                return
+            end
+
+            highlight.Visible = ShowBox and ESPEnabled
+            highlight.OutlineColor = ESPColor
+
+            nameBillboard.Visible = ShowName and ESPEnabled
+            nameLabel.TextColor3 = ESPColor
+
+            healthBillboard.Visible = ShowHealth and ESPEnabled
+            local healthRatio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+            bar.Size = UDim2.new(1, 0, healthRatio, 0)
+            bar.BackgroundColor3 = Color3.new(1 - healthRatio, healthRatio, 0)
+
+            for _, data in ipairs(skeletonParts) do
+                local line, p1Name, p2Name = data[1], data[2], data[3]
+                local p1 = character:FindFirstChild(p1Name)
+                local p2 = character:FindFirstChild(p2Name)
+                if p1 and p2 then
+                    local pos1 = p1.Position
+                    local pos2 = p2.Position
+                    local mid = (pos1 + pos2) / 2
+                    local dist = (pos1 - pos2).Magnitude
+                    line.Size = Vector3.new(0.2, 0.2, dist)
+                    line.CFrame = CFrame.lookAt(pos1, pos2) * CFrame.new(0, 0, -dist/2)
+                    line.Visible = ShowSkeleton and ESPEnabled
+                    line.BrickColor = BrickColor.new(ESPColor)
+                end
+            end
+        end)
+    end
+
+    if player.Character then applyESP(player.Character) end
+    player.CharacterAdded:Connect(applyESP)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do 
+    createESP(player) 
+end
+Players.PlayerAdded:Connect(createESP)
+
+print("ESP Loaded!")
