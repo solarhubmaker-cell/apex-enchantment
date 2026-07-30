@@ -39,9 +39,10 @@ local Window = Library:CreateWindow({
 
 -- You do not have to set your tabs & groups up this way, just a prefrence.
 local Tabs = {
-	-- Creates a new tab titled Main
-	Main = Window:AddTab("Main"),
-	["Settings"] = Window:AddTab("Settings"),
+    Main = Window:AddTab("Main"),        -- 메인 탭
+    Visuals = Window:AddTab("Visuals"),  -- 비주얼 탭 추가
+    Misc = Window:AddTab("Misc"),        -- 기타 탭 추가
+    ["Settings"] = Window:AddTab("Settings"), -- 설정 탭
 }
 
 -- Groupbox and Tabbox inherit the same functions
