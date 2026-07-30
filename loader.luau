@@ -674,12 +674,12 @@ local WatermarkConnection = game:GetService("RunService").RenderStepped:Connect(
 	end;
 
 	if CanDoPing then
-		Library:SetWatermark(("LinoriaLib demo | %d fps | %d ms"):format(
+		Library:SetWatermark(("Script | %d fps | %d ms"):format(
 			math.floor(FPS),
 			GetPing()
 		));
 	else
-		Library:SetWatermark(("LinoriaLib demo | %d fps"):format(
+		Library:SetWatermark(("Script | %d fps"):format(
 			math.floor(FPS)
 		));
 	end
