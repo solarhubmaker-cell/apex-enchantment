@@ -740,16 +740,75 @@ ThemeManager:ApplyToTab(Tabs["UI Settings"])
 -- You can use the SaveManager:LoadAutoloadConfig() to load a config
 -- which has been marked to be one that auto loads!
 SaveManager:LoadAutoloadConfig()
+
+getgenv().ESPEnabled = false
+getgenv().ShowBox = false
+getgenv().ShowHealth = false
+getgenv().ShowName = false
+getgenv().ShowSkeleton = false
+getgenv().ESPColor = Color3.new(0, 1, 0)
+
+-- Visuals 탭 UI (Tabs.Visuals가 이미 있어야 함)
+local VisualGroup = Tabs.Visuals:AddLeftGroupbox("ESP Settings")
+
+VisualGroup:AddToggle("ESPEnabled", {
+    Text = "Enable ESP",
+    Default = false,
+    Callback = function(v) 
+        getgenv().ESPEnabled = v
+        print("ESP:", v)
+    end
+})
+
+VisualGroup:AddToggle("BoxESP", {
+    Text = "Box ESP",
+    Default = false,
+    Callback = function(v) 
+        getgenv().ShowBox = v
+        print("Box:", v)
+    end
+})
+
+VisualGroup:AddToggle("HealthESP", {
+    Text = "Health Bar",
+    Default = false,
+    Callback = function(v) 
+        getgenv().ShowHealth = v
+        print("Health:", v)
+    end
+})
+
+VisualGroup:AddToggle("NameESP", {
+    Text = "Name ESP",
+    Default = false,
+    Callback = function(v) 
+        getgenv().ShowName = v
+        print("Name:", v)
+    end
+})
+
+VisualGroup:AddToggle("SkeletonESP", {
+    Text = "Skeleton ESP",
+    Default = false,
+    Callback = function(v) 
+        getgenv().ShowSkeleton = v
+        print("Skeleton:", v)
+    end
+})
+
+VisualGroup:AddLabel("Color"):AddColorPicker("ESPColor", {
+    Default = Color3.new(0, 1, 0),
+    Title = "ESP Color",
+    Callback = function(v) 
+        getgenv().ESPColor = v
+        print("Color changed")
+    end
+})
+
+-- ESP 기능 코드
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-
-local ESPEnabled = false
-local ShowBox = false
-local ShowHealth = false
-local ShowName = false
-local ShowSkeleton = false
-local ESPColor = Color3.new(0, 1, 0)
 
 local function createESP(player)
     if player == LocalPlayer then return end
@@ -767,10 +826,10 @@ local function createESP(player)
         highlight.Name = "ESP_Box"
         highlight.Adornee = character
         highlight.FillTransparency = 1
-        highlight.OutlineColor = ESPColor
+        highlight.OutlineColor = getgenv().ESPColor
         highlight.OutlineTransparency = 0
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.Visible = ShowBox
+        highlight.Visible = getgenv().ShowBox and getgenv().ESPEnabled
         highlight.Parent = character
 
         local nameBillboard = Instance.new("BillboardGui")
@@ -779,13 +838,13 @@ local function createESP(player)
         nameBillboard.Size = UDim2.new(0, 200, 0, 30)
         nameBillboard.StudsOffset = Vector3.new(0, 3.5, 0)
         nameBillboard.Adornee = hrp
-        nameBillboard.Visible = ShowName
+        nameBillboard.Visible = getgenv().ShowName and getgenv().ESPEnabled
         
         local nameLabel = Instance.new("TextLabel", nameBillboard)
         nameLabel.Size = UDim2.new(1, 0, 1, 0)
         nameLabel.BackgroundTransparency = 1
         nameLabel.Text = player.Name
-        nameLabel.TextColor3 = ESPColor
+        nameLabel.TextColor3 = getgenv().ESPColor
         nameLabel.TextSize = 14
         nameLabel.Font = Enum.Font.GothamBold
         nameLabel.TextStrokeTransparency = 0.5
@@ -797,7 +856,7 @@ local function createESP(player)
         healthBillboard.Size = UDim2.new(0, 10, 0, 50)
         healthBillboard.StudsOffset = Vector3.new(-1.5, 0, 0)
         healthBillboard.Adornee = hrp
-        healthBillboard.Visible = ShowHealth
+        healthBillboard.Visible = getgenv().ShowHealth and getgenv().ESPEnabled
 
         local bg = Instance.new("Frame", healthBillboard)
         bg.Size = UDim2.new(1, 0, 1, 0)
@@ -830,10 +889,10 @@ local function createESP(player)
             line.Size = Vector3.new(0.2, 0.2, 1)
             line.Anchored = true
             line.CanCollide = false
-            line.BrickColor = BrickColor.new(ESPColor)
+            line.BrickColor = BrickColor.new(getgenv().ESPColor)
             line.Material = Enum.Material.Neon
             line.Transparency = 0.3
-            line.Visible = ShowSkeleton
+            line.Visible = getgenv().ShowSkeleton and getgenv().ESPEnabled
             line.Parent = character
             table.insert(skeletonParts, {line, joint[1], joint[2]})
         end
@@ -848,13 +907,13 @@ local function createESP(player)
                 return
             end
 
-            highlight.Visible = ShowBox and ESPEnabled
-            highlight.OutlineColor = ESPColor
+            highlight.Visible = getgenv().ShowBox and getgenv().ESPEnabled
+            highlight.OutlineColor = getgenv().ESPColor
 
-            nameBillboard.Visible = ShowName and ESPEnabled
-            nameLabel.TextColor3 = ESPColor
+            nameBillboard.Visible = getgenv().ShowName and getgenv().ESPEnabled
+            nameLabel.TextColor3 = getgenv().ESPColor
 
-            healthBillboard.Visible = ShowHealth and ESPEnabled
+            healthBillboard.Visible = getgenv().ShowHealth and getgenv().ESPEnabled
             local healthRatio = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
             bar.Size = UDim2.new(1, 0, healthRatio, 0)
             bar.BackgroundColor3 = Color3.new(1 - healthRatio, healthRatio, 0)
@@ -866,12 +925,11 @@ local function createESP(player)
                 if p1 and p2 then
                     local pos1 = p1.Position
                     local pos2 = p2.Position
-                    local mid = (pos1 + pos2) / 2
                     local dist = (pos1 - pos2).Magnitude
                     line.Size = Vector3.new(0.2, 0.2, dist)
                     line.CFrame = CFrame.lookAt(pos1, pos2) * CFrame.new(0, 0, -dist/2)
-                    line.Visible = ShowSkeleton and ESPEnabled
-                    line.BrickColor = BrickColor.new(ESPColor)
+                    line.Visible = getgenv().ShowSkeleton and getgenv().ESPEnabled
+                    line.BrickColor = BrickColor.new(getgenv().ESPColor)
                 end
             end
         end)
@@ -886,4 +944,4 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(createESP)
 
-print("ESP Loaded!")
+print("ESP Loaded! Toggle from Visuals tab.")
