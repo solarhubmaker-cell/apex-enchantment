@@ -27,6 +27,11 @@ local Tabs = {
 }
 
 local RageGroup = Tabs.Main:AddLeftGroupbox("Rage")
+local ShootGroup = Tabs.Main:AddRightGroupbox("Shoot")
+
+-- ============================================
+-- RAGEBOT + VOID SPAM (당신의 작동하는 코드)
+-- ============================================
 
 local RageEnabled = false
 local VoidEnabled = false
@@ -94,11 +99,133 @@ RageGroup:AddSlider("VoidDelay", {
     end
 })
 
+-- ============================================
+-- RAPID FIRE (완벽 ON/OFF)
+-- ============================================
+
+local RapidFireEnabled = false
+local RapidFireSpeed = 0.05
+local OriginalItems = {}
+
+local function SaveOriginalItems()
+    local Storage = game:GetService("ReplicatedStorage")
+    local Items = require(Storage.Modules.ItemLibrary).Items
+    
+    for name, data in pairs(Items) do
+        if typeof(data) == "table" then
+            OriginalItems[name] = {}
+            for key, value in pairs(data) do
+                OriginalItems[name][key] = value
+            end
+        end
+    end
+end
+
+local function RestoreItems()
+    local Storage = game:GetService("ReplicatedStorage")
+    local Items = require(Storage.Modules.ItemLibrary).Items
+    
+    for name, data in pairs(Items) do
+        if typeof(data) == "table" and OriginalItems[name] then
+            for key, value in pairs(OriginalItems[name]) do
+                data[key] = value
+            end
+        end
+    end
+end
+
+local function ModifyWeapons()
+    local Storage = game:GetService("ReplicatedStorage")
+    local Items = require(Storage.Modules.ItemLibrary).Items
+    
+    local gunExceptions = {
+        ["Sniper"] = true,
+        ["Crossbow"] = true,
+        ["Bow"] = true,
+        ["RPG"] = true,
+    }
+    
+    for name, data in pairs(Items) do
+        if typeof(data) == "table" then
+            if typeof(data) == "table" and not gunExceptions[name] then
+                if RapidFireEnabled then
+                    if data.ShootCooldown then data.ShootCooldown = RapidFireSpeed end
+                    if data.ShootBurstCooldown then data.ShootBurstCooldown = RapidFireSpeed end
+                end
+            end
+            
+            if RapidFireEnabled then
+                if data.AttackCooldown then data.AttackCooldown = RapidFireSpeed end
+                if data.SwingCooldown then data.SwingCooldown = RapidFireSpeed end
+                if data.MeleeCooldown then data.MeleeCooldown = RapidFireSpeed end
+                if data.Cooldown then data.Cooldown = RapidFireSpeed end
+                if data.RecoveryTime then data.RecoveryTime = RapidFireSpeed end
+                if data.ResetTime then data.ResetTime = RapidFireSpeed end
+            end
+        end
+    end
+end
+
+_G.ToggleRapidFire = function()
+    RapidFireEnabled = not RapidFireEnabled
+    if RapidFireEnabled then
+        SaveOriginalItems()
+        ModifyWeapons()
+    else
+        RestoreItems()
+    end
+    print("Rapid Fire:", RapidFireEnabled and "ON" or "OFF")
+    return RapidFireEnabled
+end
+
+_G.SetRapidFireSpeed = function(speed)
+    RapidFireSpeed = speed
+    if RapidFireEnabled then
+        ModifyWeapons()
+    end
+    print("Rapid Fire Speed:", speed .. "s")
+end
+
+-- ============================================
+-- UI - SHOOT TAB
+-- ============================================
+
+ShootGroup:AddToggle("RapidFireToggle", {
+    Text = "Rapid Fire",
+    Default = false,
+    Callback = function(v)
+        if v then
+            _G.ToggleRapidFire()
+        else
+            _G.ToggleRapidFire()
+        end
+    end
+})
+
+ShootGroup:AddSlider("RapidFireSpeed", {
+    Text = "Fire Speed (sec)",
+    Default = 0.05,
+    Min = 0.01,
+    Max = 0.5,
+    Rounding = 2,
+    Callback = function(v)
+        _G.SetRapidFireSpeed(v)
+    end
+})
+
+-- ============================================
+-- VISUALS / MISC
+-- ============================================
+
 local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("Visuals")
 VisualsGroup:AddLabel("ESP Coming Soon")
 
 local MiscGroup = Tabs.Misc:AddLeftGroupbox("Misc")
 MiscGroup:AddLabel("Misc Coming Soon")
+
+-- ============================================
+-- UI SETTINGS
+-- ============================================
 
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 MenuGroup:AddButton("Unload", function()
@@ -107,6 +234,8 @@ MenuGroup:AddButton("Unload", function()
         Env.RageBot:StopVoidSpam()
         Env.RageBot = nil
     end
+    RapidFireEnabled = false
+    RestoreItems()
     Library:Unload()
 end)
 MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
@@ -130,7 +259,7 @@ SaveManager:LoadAutoloadConfig()
 print("UI Loaded! Loading RageBot...")
 
 -- ============================================
--- RAGEBOT (당신의 코드 + Void Spam 추가)
+-- RAGEBOT CORE (당신의 작동하는 코드)
 -- ============================================
 
 task.wait(0.5)
@@ -237,7 +366,7 @@ do
                 Results[4] = true
 
                 local TargetPlayer = self.Target
-                if not self.Active or not TargetPlayer or not TargetPlayer.Character then
+                if not self.Active or not self.RageMode or not TargetPlayer or not TargetPlayer.Character then
                     return unpack(Results)
                 end
 
@@ -285,7 +414,7 @@ do
                 end
 
                 local TargetPlayer = self.Target
-                if self.Active and TargetPlayer and TargetPlayer.Character then
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -307,7 +436,7 @@ do
 
             Weapon.Swing = function(Module, ...)
                 local TargetPlayer = self.Target
-                if self.Active and TargetPlayer and TargetPlayer.Character then
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -328,7 +457,7 @@ do
 
             Weapon.Activate = function(Module, ...)
                 local TargetPlayer = self.Target
-                if self.Active and TargetPlayer and TargetPlayer.Character then
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -369,18 +498,23 @@ do
             if not Root or not Head or not Humanoid or Humanoid.Health <= 0 then continue end
 
             local Dist = (MyRoot.Position - Root.Position).Magnitude
-            if Dist >= ClosestDist then continue end
-
-            ClosestDist = Dist
-            ClosestPlayer = Player
+            if Dist < ClosestDist then
+                ClosestDist = Dist
+                ClosestPlayer = Player
+            end
         end
 
         return ClosestPlayer
     end
 
     function RageBot:SetupHeartbeat()
+        if self.HeartbeatConn then
+            self.HeartbeatConn:Disconnect()
+            self.HeartbeatConn = nil
+        end
+        
         self.HeartbeatConn = RunService.Heartbeat:Connect(function()
-            if not self.Active then return end
+            if not self.Active or not self.RageMode then return end
             self.Target = self:FindTarget()
         end)
     end
@@ -428,9 +562,16 @@ do
             self.DesyncConn:Disconnect()
             self.DesyncConn = nil
         end
+        
+        RunService:UnbindFromRenderStep("RestoreDesync")
     end
 
     function RageBot:SetupRageMode()
+        if self.RenderConn then
+            self.RenderConn:Disconnect()
+            self.RenderConn = nil
+        end
+        
         self.RenderConn = RunService.RenderStepped:Connect(function()
             if not self.Active or not self.RageMode then return end
             if not self.Target or not self.Target.Character then return end
@@ -465,16 +606,13 @@ do
         end)
     end
 
-    -- ============================================
-    -- VOID SPAM (새로 추가)
-    -- ============================================
     function RageBot:StartVoidSpam(rageDelay, voidDelay)
         if self.VoidSpamActive then return end
         self.VoidSpamActive = true
         self.RageDelay = rageDelay or 1
         self.VoidDelay = voidDelay or 0.5
         
-        print("Void Spam Started! Rage: " .. self.RageDelay .. "s, Void: " .. self.VoidDelay .. "s")
+        print("Void Spam Started!")
         
         self.VoidTask = task.spawn(function()
             while self.VoidSpamActive do
@@ -538,15 +676,32 @@ do
         self:StopVoidSpam()
         self:StopDesync()
 
-        if self.HeartbeatConn then self.HeartbeatConn:Disconnect() end
-        if self.DesyncConn then self.DesyncConn:Disconnect() end
-        if self.RenderConn then self.RenderConn:Disconnect() end
-        if self.DelayTask then task.cancel(self.DelayTask) end
+        if self.HeartbeatConn then 
+            self.HeartbeatConn:Disconnect() 
+            self.HeartbeatConn = nil
+        end
+        if self.DesyncConn then 
+            self.DesyncConn:Disconnect() 
+            self.DesyncConn = nil
+        end
+        if self.RenderConn then 
+            self.RenderConn:Disconnect() 
+            self.RenderConn = nil
+        end
+        if self.DelayTask then 
+            task.cancel(self.DelayTask) 
+            self.DelayTask = nil
+        end
+        
+        pcall(function()
+            RunService:UnbindFromRenderStep("RestoreDesync")
+            RunService:UnbindFromRenderStep("RestoreRage")
+            RunService:UnbindFromRenderStep("RestoreVoid")
+        end)
 
         for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
             local WeaponName = FuncName:gsub("_.*$", "")
             local MethodName = FuncName:match("_(.*)$") or "StartShooting"
-
             local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
             if ItemTypes then
                 local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
@@ -592,5 +747,6 @@ pcall(function()
     end)
 end)
 
-print("All Loaded! Use UI to control RageBot and Void Spam.")
-print("RightShift to open menu.")
+print("All Loaded!")
+print("RageBot, Void Spam, Rapid Fire - All ON/OFF from UI")
+print("RightShift to open menu")
