@@ -27,7 +27,6 @@ local Tabs = {
 }
 
 local RageGroup = Tabs.Main:AddLeftGroupbox("Rage")
-local VoidGroup = Tabs.Main:AddRightGroupbox("Void Spam")
 
 local RageEnabled = false
 local VoidEnabled = false
@@ -40,23 +39,20 @@ RageGroup:AddToggle("RageToggle", {
     Callback = function(v)
         RageEnabled = v
         if v then
-            if Env.RageBot then
-                Env.RageBot.RageMode = true
-                Env.RageBot.Active = true
-                print("RageBot ON")
-            end
+            _G.ToggleRage()
+            print("RageBot ON")
         else
             if Env.RageBot then
-                Env.RageBot.RageMode = false
-                Env.RageBot.Active = false
                 Env.RageBot:Shutdown()
+                Env.RageBot.Active = false
+                Env.RageBot.RageMode = false
                 print("RageBot OFF")
             end
         end
     end
 })
 
-VoidGroup:AddToggle("VoidToggle", {
+RageGroup:AddToggle("VoidToggle", {
     Text = "Enable Void Spam",
     Default = false,
     Callback = function(v)
@@ -84,7 +80,7 @@ RageGroup:AddSlider("RageDelay", {
     end
 })
 
-VoidGroup:AddSlider("VoidDelay", {
+RageGroup:AddSlider("VoidDelay", {
     Text = "Void Delay (sec)",
     Default = 0.5,
     Min = 0.1,
@@ -99,10 +95,10 @@ VoidGroup:AddSlider("VoidDelay", {
 })
 
 local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("Visuals")
-VisualsGroup:AddLabel("ESP Options Coming Soon")
+VisualsGroup:AddLabel("ESP Coming Soon")
 
 local MiscGroup = Tabs.Misc:AddLeftGroupbox("Misc")
-MiscGroup:AddLabel("Misc Options Coming Soon")
+MiscGroup:AddLabel("Misc Coming Soon")
 
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 MenuGroup:AddButton("Unload", function()
@@ -134,21 +130,10 @@ SaveManager:LoadAutoloadConfig()
 print("UI Loaded! Loading RageBot...")
 
 -- ============================================
--- RAGEBOT + VOID SPAM (RIVALS)
+-- RAGEBOT (당신의 코드 + Void Spam 추가)
 -- ============================================
 
 task.wait(0.5)
-
-local Env = getgenv()
-
-if Env.RageBot then
-    pcall(function()
-        Env.RageBot:Shutdown()
-        Env.RageBot:StopVoidSpam()
-    end)
-    Env.RageBot = nil
-    task.wait(0.3)
-end
 
 local Services = setmetatable({}, {
     __index = function(_, ServiceName)
@@ -159,6 +144,11 @@ local Services = setmetatable({}, {
     end
 })
 
+local Env = getgenv()
+if Env.RageBot then
+    Env.RageBot:Shutdown()
+end
+
 local Players = Services.Players
 local RunService = Services.RunService
 local ReplicatedStorage = Services.ReplicatedStorage
@@ -168,11 +158,7 @@ local UserInputService = Services.UserInputService
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local PlayerScripts = LocalPlayer.PlayerScripts
-
-local Utility = nil
-pcall(function()
-    Utility = require(ReplicatedStorage.Modules.Utility)
-end)
+local Utility = require(ReplicatedStorage.Modules.Utility)
 
 local CharacterParts = setmetatable({}, {
     __index = function(_, PartName)
@@ -211,10 +197,7 @@ do
 
     function RageBot:SetupWeaponHooks()
         local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
-        if not ItemTypes then 
-            print("ItemTypes not found!")
-            return 
-        end
+        if not ItemTypes then return end
 
         local WeaponList = {
             "Gun", "Slingshot", "Bow", "Daggers", "Crossbow",
@@ -222,11 +205,14 @@ do
         }
 
         for _, WeaponName in ipairs(WeaponList) do
-            self:HookWeapon(WeaponName, ItemTypes)
+            self:HookWeapon(WeaponName)
         end
     end
 
-    function RageBot:HookWeapon(WeaponName, ItemTypes)
+    function RageBot:HookWeapon(WeaponName)
+        local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
+        if not ItemTypes then return end
+
         local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
         if not WeaponModule then return end
 
@@ -251,7 +237,7 @@ do
                 Results[4] = true
 
                 local TargetPlayer = self.Target
-                if not self.Active or not self.RageMode or not TargetPlayer or not TargetPlayer.Character then
+                if not self.Active or not TargetPlayer or not TargetPlayer.Character then
                     return unpack(Results)
                 end
 
@@ -268,19 +254,17 @@ do
                 local TargetHead = TargetPlayer.Character:FindFirstChild("Head")
                 if not TargetHead then return unpack(Results) end
 
-                if Utility and Utility.EncodeCFrame then
-                    local HeadPos = TargetHead.Position
-                    local AimPos = HeadPos - Vector3.new(0, 5, 0)
-                    local AimCFrame = CFrame.lookAt(AimPos, HeadPos)
-                    local RandomOffset = TargetHead.CFrame:ToObjectSpace(
-                        CFrame.new(HeadPos + Vector3.new(math.random(), math.random(), math.random()))
-                    )
+                local HeadPos = TargetHead.Position
+                local AimPos = HeadPos - Vector3.new(0, 5, 0)
+                local AimCFrame = CFrame.lookAt(AimPos, HeadPos)
+                local RandomOffset = TargetHead.CFrame:ToObjectSpace(
+                    CFrame.new(HeadPos + Vector3.new(math.random(), math.random(), math.random()))
+                )
 
-                    TargetData[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(AimPos, HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
-                    TargetData[utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
-                    TargetData[utf8.char(2)] = TargetHead
-                    TargetData[utf8.char(3)] = Utility:EncodeCFrame(RandomOffset)
-                end
+                TargetData[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(AimPos, HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                TargetData[utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                TargetData[utf8.char(2)] = TargetHead
+                TargetData[utf8.char(3)] = Utility:EncodeCFrame(RandomOffset)
 
                 self.DelayTask = task.delay(0.15, function()
                     self:StopDesync()
@@ -301,7 +285,7 @@ do
                 end
 
                 local TargetPlayer = self.Target
-                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                if self.Active and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -323,7 +307,7 @@ do
 
             Weapon.Swing = function(Module, ...)
                 local TargetPlayer = self.Target
-                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                if self.Active and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -344,7 +328,7 @@ do
 
             Weapon.Activate = function(Module, ...)
                 local TargetPlayer = self.Target
-                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                if self.Active and TargetPlayer and TargetPlayer.Character then
                     if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
                         self:StartDesync(TargetPlayer)
                     end
@@ -385,23 +369,18 @@ do
             if not Root or not Head or not Humanoid or Humanoid.Health <= 0 then continue end
 
             local Dist = (MyRoot.Position - Root.Position).Magnitude
-            if Dist < ClosestDist then
-                ClosestDist = Dist
-                ClosestPlayer = Player
-            end
+            if Dist >= ClosestDist then continue end
+
+            ClosestDist = Dist
+            ClosestPlayer = Player
         end
 
         return ClosestPlayer
     end
 
     function RageBot:SetupHeartbeat()
-        if self.HeartbeatConn then
-            self.HeartbeatConn:Disconnect()
-            self.HeartbeatConn = nil
-        end
-        
         self.HeartbeatConn = RunService.Heartbeat:Connect(function()
-            if not self.Active or not self.RageMode then return end
+            if not self.Active then return end
             self.Target = self:FindTarget()
         end)
     end
@@ -449,16 +428,9 @@ do
             self.DesyncConn:Disconnect()
             self.DesyncConn = nil
         end
-        
-        RunService:UnbindFromRenderStep("RestoreDesync")
     end
 
     function RageBot:SetupRageMode()
-        if self.RenderConn then
-            self.RenderConn:Disconnect()
-            self.RenderConn = nil
-        end
-        
         self.RenderConn = RunService.RenderStepped:Connect(function()
             if not self.Active or not self.RageMode then return end
             if not self.Target or not self.Target.Character then return end
@@ -493,6 +465,9 @@ do
         end)
     end
 
+    -- ============================================
+    -- VOID SPAM (새로 추가)
+    -- ============================================
     function RageBot:StartVoidSpam(rageDelay, voidDelay)
         if self.VoidSpamActive then return end
         self.VoidSpamActive = true
@@ -563,32 +538,15 @@ do
         self:StopVoidSpam()
         self:StopDesync()
 
-        if self.HeartbeatConn then 
-            self.HeartbeatConn:Disconnect() 
-            self.HeartbeatConn = nil
-        end
-        if self.DesyncConn then 
-            self.DesyncConn:Disconnect() 
-            self.DesyncConn = nil
-        end
-        if self.RenderConn then 
-            self.RenderConn:Disconnect() 
-            self.RenderConn = nil
-        end
-        if self.DelayTask then 
-            task.cancel(self.DelayTask) 
-            self.DelayTask = nil
-        end
-        
-        pcall(function()
-            RunService:UnbindFromRenderStep("RestoreDesync")
-            RunService:UnbindFromRenderStep("RestoreRage")
-            RunService:UnbindFromRenderStep("RestoreVoid")
-        end)
+        if self.HeartbeatConn then self.HeartbeatConn:Disconnect() end
+        if self.DesyncConn then self.DesyncConn:Disconnect() end
+        if self.RenderConn then self.RenderConn:Disconnect() end
+        if self.DelayTask then task.cancel(self.DelayTask) end
 
         for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
             local WeaponName = FuncName:gsub("_.*$", "")
             local MethodName = FuncName:match("_(.*)$") or "StartShooting"
+
             local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
             if ItemTypes then
                 local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
@@ -617,6 +575,7 @@ _G.ForceStopRage = function()
     if Env and Env.RageBot then
         pcall(function()
             Env.RageBot:Shutdown()
+            Env.RageBot:StopVoidSpam()
             Env.RageBot = nil
             print("RageBot Force Stopped!")
         end)
@@ -627,6 +586,7 @@ pcall(function()
     LocalPlayer.OnTeleport:Connect(function()
         if Env.RageBot then
             Env.RageBot:Shutdown()
+            Env.RageBot:StopVoidSpam()
             Env.RageBot = nil
         end
     end)
@@ -634,4 +594,3 @@ end)
 
 print("All Loaded! Use UI to control RageBot and Void Spam.")
 print("RightShift to open menu.")
-print("Toggle RageBot ON to activate.")
