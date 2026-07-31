@@ -27,7 +27,6 @@ local Tabs = {
 }
 
 local RageGroup = Tabs.Main:AddLeftGroupbox("Rage")
-
 local RageEnabled = false
 local VoidEnabled = false
 local RageDelay = 1
@@ -39,9 +38,13 @@ RageGroup:AddToggle("RageToggle", {
     Callback = function(v)
         RageEnabled = v
         if v then
-            StartRageBot()
+            if Env.RageBot then
+                Env.RageBot:Start()
+            end
         else
-            StopRageBot()
+            if Env.RageBot then
+                Env.RageBot:Stop()
+            end
         end
     end
 })
@@ -51,10 +54,10 @@ RageGroup:AddToggle("VoidToggle", {
     Default = false,
     Callback = function(v)
         VoidEnabled = v
-        if v then
-            StartVoidSpam()
-        else
-            StopVoidSpam()
+        if v and Env.RageBot then
+            Env.RageBot:StartVoidSpam(RageDelay, VoidDelay)
+        elseif Env.RageBot then
+            Env.RageBot:StopVoidSpam()
         end
     end
 })
@@ -67,8 +70,8 @@ RageGroup:AddSlider("RageDelay", {
     Rounding = 1,
     Callback = function(v)
         RageDelay = v
-        if VoidEnabled then
-            UpdateVoidSpam()
+        if VoidEnabled and Env.RageBot then
+            Env.RageBot:UpdateVoidSpam(RageDelay, VoidDelay)
         end
     end
 })
@@ -81,22 +84,33 @@ RageGroup:AddSlider("VoidDelay", {
     Rounding = 1,
     Callback = function(v)
         VoidDelay = v
-        if VoidEnabled then
-            UpdateVoidSpam()
+        if VoidEnabled and Env.RageBot then
+            Env.RageBot:UpdateVoidSpam(RageDelay, VoidDelay)
         end
     end
 })
 
+RageGroup:AddButton("Force Stop", function()
+    if Env.RageBot then
+        Env.RageBot:Stop()
+        Env.RageBot:StopVoidSpam()
+    end
+    Library:Notify("RageBot Force Stopped!")
+end)
+
 local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("Visuals")
-VisualsGroup:AddLabel("ESP Coming Soon")
+VisualsGroup:AddLabel("ESP Options Coming Soon")
 
 local MiscGroup = Tabs.Misc:AddLeftGroupbox("Misc")
-MiscGroup:AddLabel("Misc Coming Soon")
+MiscGroup:AddLabel("Misc Options Coming Soon")
 
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
 MenuGroup:AddButton("Unload", function() 
-    StopRageBot()
-    StopVoidSpam()
+    if Env.RageBot then
+        Env.RageBot:Stop()
+        Env.RageBot:StopVoidSpam()
+        Env.RageBot = nil
+    end
     Library:Unload() 
 end)
 MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
@@ -117,224 +131,521 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 SaveManager:LoadAutoloadConfig()
 
-print("UI Loaded!")
+print("UI Loaded! Loading RageBot...")
 
 -- ============================================
--- RAGEBOT CORE
+-- RAGEBOT + VOID SPAM (RIVALS)
 -- ============================================
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+task.wait(0.5)
 
-local RageBotActive = false
-local VoidActive = false
-local VoidTask = nil
-local Target = nil
-local HeartbeatConn = nil
-local OriginalFuncs = {}
+local Env = getgenv()
 
--- Find Target
-local function FindTarget()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
-    
-    local closest = nil
-    local closestDist = math.huge
-    
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        if player:GetAttribute("TeamID") == LocalPlayer:GetAttribute("TeamID") then continue end
-        
-        local pChar = player.Character
-        if not pChar then continue end
-        
-        local pRoot = pChar:FindFirstChild("HumanoidRootPart")
-        local pHead = pChar:FindFirstChild("Head")
-        local pHumanoid = pChar:FindFirstChildWhichIsA("Humanoid")
-        
-        if not pRoot or not pHead or not pHumanoid or pHumanoid.Health <= 0 then continue end
-        
-        local dist = (root.Position - pRoot.Position).Magnitude
-        if dist < closestDist then
-            closestDist = dist
-            closest = player
-        end
-    end
-    
-    return closest
-end
-
--- Setup Heartbeat
-local function SetupHeartbeat()
-    if HeartbeatConn then
-        HeartbeatConn:Disconnect()
-        HeartbeatConn = nil
-    end
-    
-    HeartbeatConn = RunService.Heartbeat:Connect(function()
-        if not RageBotActive then return end
-        Target = FindTarget()
+if Env.RageBot then
+    pcall(function()
+        Env.RageBot:Stop()
+        Env.RageBot:StopVoidSpam()
     end)
+    Env.RageBot = nil
+    task.wait(0.3)
 end
 
--- Hook Weapons
-local function HookWeapons()
-    local ps = LocalPlayer:FindFirstChild("PlayerScripts")
-    if not ps then return end
-    
-    local modules = ps:FindFirstChild("Modules")
-    if not modules then return end
-    
-    local itemTypes = modules:FindFirstChild("ItemTypes")
-    if not itemTypes then return end
-    
-    local weapons = {"Gun", "Slingshot", "Bow", "Daggers", "Crossbow", "RPG", "Shotgun", "Sniper", "Flare Gun", "Spray"}
-    
-    for _, name in ipairs(weapons) do
-        local module = itemTypes:FindFirstChild(name)
-        if module then
-            local success, weapon = pcall(require, module)
-            if success and weapon and weapon.StartShooting then
-                local key = name .. "_StartShooting"
-                OriginalFuncs[key] = weapon.StartShooting
-                
-                weapon.StartShooting = function(self, ...)
-                    local results = {OriginalFuncs[key](self, ...)}
-                    
-                    if RageBotActive and Target and Target.Character then
-                        local head = Target.Character:FindFirstChild("Head")
-                        if head then
-                            results[4] = true
-                        end
+local Services = setmetatable({}, {
+    __index = function(_, ServiceName)
+        local Success, Service = pcall(function()
+            return game:GetService(ServiceName)
+        end)
+        return Success and cloneref(Service) or nil
+    end
+})
+
+local Players = Services.Players
+local RunService = Services.RunService
+local ReplicatedStorage = Services.ReplicatedStorage
+local Workspace = Services.Workspace
+local UserInputService = Services.UserInputService
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local PlayerScripts = LocalPlayer.PlayerScripts
+local Utility = require(ReplicatedStorage.Modules.Utility)
+
+local CharacterParts = setmetatable({}, {
+    __index = function(_, PartName)
+        local Character = LocalPlayer.Character
+        if not Character then return nil end
+        if PartName == "Root" then
+            return Character:FindFirstChild("HumanoidRootPart")
+        elseif PartName == "Head" then
+            return Character:FindFirstChild("Head")
+        end
+        return nil
+    end
+})
+
+Env.RageBot = {}
+
+do
+    local RageBot = Env.RageBot
+
+    function RageBot:Initialize()
+        self.Active = false
+        self.Target = nil
+        self.DesyncActive = false
+        self.RageMode = false
+        self.VoidSpamActive = false
+        self.RageDelay = 1
+        self.VoidDelay = 0.5
+        self.HeartbeatConn = nil
+        self.DesyncConn = nil
+        self.RenderConn = nil
+        self.DelayTask = nil
+        self.VoidTask = nil
+        self.OriginalFuncs = {}
+    end
+
+    function RageBot:Start()
+        if self.Active then return end
+        self.Active = true
+        self.RageMode = true
+        print("RageBot Started!")
+        
+        self:SetupWeaponHooks()
+        self:SetupHeartbeat()
+        self:SetupRageMode()
+    end
+
+    function RageBot:Stop()
+        if not self.Active then return end
+        self.Active = false
+        self.RageMode = false
+        self:StopVoidSpam()
+        self:StopDesync()
+        print("RageBot Stopped!")
+        
+        if self.HeartbeatConn then 
+            self.HeartbeatConn:Disconnect() 
+            self.HeartbeatConn = nil
+        end
+        if self.DesyncConn then 
+            self.DesyncConn:Disconnect() 
+            self.DesyncConn = nil
+        end
+        if self.RenderConn then 
+            self.RenderConn:Disconnect() 
+            self.RenderConn = nil
+        end
+        if self.DelayTask then 
+            task.cancel(self.DelayTask) 
+            self.DelayTask = nil
+        end
+        
+        pcall(function()
+            RunService:UnbindFromRenderStep("RestoreDesync")
+            RunService:UnbindFromRenderStep("RestoreRage")
+            RunService:UnbindFromRenderStep("RestoreVoid")
+        end)
+        
+        for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
+            local WeaponName = FuncName:gsub("_.*$", "")
+            local MethodName = FuncName:match("_(.*)$") or "StartShooting"
+            local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
+            if ItemTypes then
+                local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
+                if WeaponModule then
+                    local Success, Weapon = pcall(require, WeaponModule)
+                    if Success and Weapon[MethodName] then
+                        Weapon[MethodName] = OriginalFunc
                     end
-                    
-                    return unpack(results)
                 end
             end
         end
+        self.OriginalFuncs = {}
     end
-end
 
--- Start RageBot
-function StartRageBot()
-    if RageBotActive then return end
-    RageBotActive = true
-    print("RageBot Started!")
-    
-    HookWeapons()
-    SetupHeartbeat()
-end
+    function RageBot:SetupWeaponHooks()
+        local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
+        if not ItemTypes then 
+            print("ItemTypes not found!")
+            return 
+        end
 
--- Stop RageBot
-function StopRageBot()
-    if not RageBotActive then return end
-    RageBotActive = false
-    Target = nil
-    print("RageBot Stopped!")
-    
-    if HeartbeatConn then
-        HeartbeatConn:Disconnect()
-        HeartbeatConn = nil
+        local WeaponList = {
+            "Gun", "Slingshot", "Bow", "Daggers", "Crossbow",
+            "RPG", "Shotgun", "Sniper", "Flare Gun", "Spray"
+        }
+
+        for _, WeaponName in ipairs(WeaponList) do
+            self:HookWeapon(WeaponName, ItemTypes)
+        end
     end
-    
-    -- Restore original functions
-    local ps = LocalPlayer:FindFirstChild("PlayerScripts")
-    if ps then
-        local modules = ps:FindFirstChild("Modules")
-        if modules then
-            local itemTypes = modules:FindFirstChild("ItemTypes")
-            if itemTypes then
-                for key, func in pairs(OriginalFuncs) do
-                    local name = key:gsub("_StartShooting", "")
-                    local module = itemTypes:FindFirstChild(name)
-                    if module then
-                        local success, weapon = pcall(require, module)
-                        if success then
-                            weapon.StartShooting = func
-                        end
-                    end
+
+    function RageBot:HookWeapon(WeaponName, ItemTypes)
+        local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
+        if not WeaponModule then return end
+
+        local Success, Weapon = pcall(require, WeaponModule)
+        if not Success then return end
+
+        if Weapon.StartShooting then
+            self.OriginalFuncs[WeaponName .. "_StartShooting"] = Weapon.StartShooting
+
+            Weapon.StartShooting = function(Module, ...)
+                local Results = {self.OriginalFuncs[WeaponName .. "_StartShooting"](Module, ...)}
+                
+                if not Module.ClientFighter or not Module.ClientFighter.IsLocalPlayer then
+                    return unpack(Results)
                 end
+
+                local TargetData = Results[3]
+                if not TargetData or typeof(TargetData) ~= "table" then
+                    return unpack(Results)
+                end
+
+                Results[4] = true
+
+                local TargetPlayer = self.Target
+                if not self.Active or not self.RageMode or not TargetPlayer or not TargetPlayer.Character then
+                    return unpack(Results)
+                end
+
+                if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
+                    self:StartDesync(TargetPlayer)
+                    task.wait(0.1)
+                end
+
+                if self.DelayTask then
+                    task.cancel(self.DelayTask)
+                    self.DelayTask = nil
+                end
+
+                local TargetHead = TargetPlayer.Character:FindFirstChild("Head")
+                if not TargetHead then return unpack(Results) end
+
+                local HeadPos = TargetHead.Position
+                local AimPos = HeadPos - Vector3.new(0, 5, 0)
+                local AimCFrame = CFrame.lookAt(AimPos, HeadPos)
+                local RandomOffset = TargetHead.CFrame:ToObjectSpace(
+                    CFrame.new(HeadPos + Vector3.new(math.random(), math.random(), math.random()))
+                )
+
+                TargetData[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(AimPos, HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                TargetData[utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                TargetData[utf8.char(2)] = TargetHead
+                TargetData[utf8.char(3)] = Utility:EncodeCFrame(RandomOffset)
+
+                self.DelayTask = task.delay(0.15, function()
+                    self:StopDesync()
+                end)
+
+                return unpack(Results)
+            end
+        end
+
+        if Weapon.Fire then
+            self.OriginalFuncs[WeaponName .. "_Fire"] = Weapon.Fire
+
+            Weapon.Fire = function(Module, ...)
+                local Results = {self.OriginalFuncs[WeaponName .. "_Fire"](Module, ...)}
+                
+                if not Module.ClientFighter or not Module.ClientFighter.IsLocalPlayer then
+                    return unpack(Results)
+                end
+
+                local TargetPlayer = self.Target
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                    if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
+                        self:StartDesync(TargetPlayer)
+                    end
+                    if self.DelayTask then
+                        task.cancel(self.DelayTask)
+                        self.DelayTask = nil
+                    end
+                    self.DelayTask = task.delay(0.15, function()
+                        self:StopDesync()
+                    end)
+                end
+
+                return unpack(Results)
+            end
+        end
+
+        if Weapon.Swing then
+            self.OriginalFuncs[WeaponName .. "_Swing"] = Weapon.Swing
+
+            Weapon.Swing = function(Module, ...)
+                local TargetPlayer = self.Target
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                    if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
+                        self:StartDesync(TargetPlayer)
+                    end
+                    if self.DelayTask then
+                        task.cancel(self.DelayTask)
+                        self.DelayTask = nil
+                    end
+                    self.DelayTask = task.delay(0.15, function()
+                        self:StopDesync()
+                    end)
+                end
+                return self.OriginalFuncs[WeaponName .. "_Swing"](Module, ...)
+            end
+        end
+
+        if Weapon.Activate then
+            self.OriginalFuncs[WeaponName .. "_Activate"] = Weapon.Activate
+
+            Weapon.Activate = function(Module, ...)
+                local TargetPlayer = self.Target
+                if self.Active and self.RageMode and TargetPlayer and TargetPlayer.Character then
+                    if not self.DesyncActive or self.CurrentTarget ~= TargetPlayer then
+                        self:StartDesync(TargetPlayer)
+                    end
+                    if self.DelayTask then
+                        task.cancel(self.DelayTask)
+                        self.DelayTask = nil
+                    end
+                    self.DelayTask = task.delay(0.15, function()
+                        self:StopDesync()
+                    end)
+                end
+                return self.OriginalFuncs[WeaponName .. "_Activate"](Module, ...)
             end
         end
     end
-    OriginalFuncs = {}
-end
 
--- Start Void Spam
-function StartVoidSpam()
-    if VoidActive then return end
-    VoidActive = true
-    print("Void Spam Started!")
-    
-    VoidTask = task.spawn(function()
-        while VoidActive do
-            local char = LocalPlayer.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if root then
-                task.wait(RageDelay)
+    function RageBot:FindTarget()
+        local MyCharacter = LocalPlayer.Character
+        if not MyCharacter then return nil end
+
+        local MyRoot = MyCharacter:FindFirstChild("HumanoidRootPart")
+        if not MyRoot then return nil end
+
+        local ClosestPlayer = nil
+        local ClosestDist = math.huge
+
+        for _, Player in ipairs(Players:GetPlayers()) do
+            if Player == LocalPlayer then continue end
+            if Player:GetAttribute("TeamID") == LocalPlayer:GetAttribute("TeamID") then continue end
+
+            local Character = Player.Character
+            if not Character then continue end
+
+            local Root = Character:FindFirstChild("HumanoidRootPart")
+            local Head = Character:FindFirstChild("Head")
+            local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+
+            if not Root or not Head or not Humanoid or Humanoid.Health <= 0 then continue end
+
+            local Dist = (MyRoot.Position - Root.Position).Magnitude
+            if Dist < ClosestDist then
+                ClosestDist = Dist
+                ClosestPlayer = Player
+            end
+        end
+
+        return ClosestPlayer
+    end
+
+    function RageBot:SetupHeartbeat()
+        if self.HeartbeatConn then
+            self.HeartbeatConn:Disconnect()
+            self.HeartbeatConn = nil
+        end
+        
+        self.HeartbeatConn = RunService.Heartbeat:Connect(function()
+            if not self.Active or not self.RageMode then return end
+            self.Target = self:FindTarget()
+        end)
+    end
+
+    function RageBot:StartDesync(TargetPlayer)
+        if self.DesyncConn then
+            self.DesyncConn:Disconnect()
+        end
+
+        self.DesyncActive = true
+        self.CurrentTarget = TargetPlayer
+
+        self.DesyncConn = RunService.Heartbeat:Connect(function()
+            if not self.DesyncActive then return end
+
+            local MyRoot = CharacterParts.Root
+            if not MyRoot then return end
+
+            local TargetRoot = TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not TargetRoot then
+                self:StopDesync()
+                return
+            end
+
+            local OldCFrame = MyRoot.CFrame
+            local OldVelocity = MyRoot.Velocity
+            local OldRotVelocity = MyRoot.RotVelocity
+
+            MyRoot.CFrame = TargetRoot.CFrame * CFrame.new(0, -5, 0)
+
+            RunService:BindToRenderStep("RestoreDesync", 101, function()
+                MyRoot.CFrame = OldCFrame
+                MyRoot.Velocity = OldVelocity
+                MyRoot.RotVelocity = OldRotVelocity
+                RunService:UnbindFromRenderStep("RestoreDesync")
+            end)
+        end)
+    end
+
+    function RageBot:StopDesync()
+        self.DesyncActive = false
+        self.CurrentTarget = nil
+
+        if self.DesyncConn then
+            self.DesyncConn:Disconnect()
+            self.DesyncConn = nil
+        end
+        
+        RunService:UnbindFromRenderStep("RestoreDesync")
+    end
+
+    function RageBot:SetupRageMode()
+        if self.RenderConn then
+            self.RenderConn:Disconnect()
+            self.RenderConn = nil
+        end
+        
+        self.RenderConn = RunService.RenderStepped:Connect(function()
+            if not self.Active or not self.RageMode then return end
+            if not self.Target or not self.Target.Character then return end
+
+            local MyRoot = CharacterParts.Root
+            if not MyRoot then return end
+
+            local TargetRoot = self.Target.Character:FindFirstChild("HumanoidRootPart")
+            if not TargetRoot then return end
+
+            local OldCFrame = MyRoot.CFrame
+            local OldVelocity = MyRoot.Velocity
+
+            local Height = 10 + math.random(0, 3)
+            local OffsetX = (math.random() - 0.5) * 5
+            local OffsetZ = (math.random() - 0.5) * 5
+
+            local TeleportPos = TargetRoot.Position + Vector3.new(OffsetX, Height, OffsetZ)
+
+            MyRoot.CFrame = CFrame.new(TeleportPos)
+            MyRoot.Velocity = Vector3.new(
+                (math.random() - 0.5) * 200,
+                math.random(100, 200),
+                (math.random() - 0.5) * 200
+            )
+
+            RunService:BindToRenderStep("RestoreRage", 101, function()
+                MyRoot.CFrame = OldCFrame
+                MyRoot.Velocity = OldVelocity
+                RunService:UnbindFromRenderStep("RestoreRage")
+            end)
+        end)
+    end
+
+    function RageBot:StartVoidSpam(rageDelay, voidDelay)
+        if self.VoidSpamActive then return end
+        self.VoidSpamActive = true
+        self.RageDelay = rageDelay or 1
+        self.VoidDelay = voidDelay or 0.5
+        
+        print("Void Spam Started! Rage: " .. self.RageDelay .. "s, Void: " .. self.VoidDelay .. "s")
+        
+        self.VoidTask = task.spawn(function()
+            while self.VoidSpamActive do
+                local MyRoot = CharacterParts.Root
+                if not MyRoot then
+                    task.wait(0.5)
+                    continue
+                end
                 
-                local oldCF = root.CFrame
-                local oldVel = root.Velocity
-                local oldRot = root.RotVelocity
+                task.wait(self.RageDelay)
                 
-                root.CFrame = CFrame.new(999999999999, 99999999999, 999999999999)
-                root.Velocity = Vector3.new(0, 0, 0)
-                root.RotVelocity = Vector3.new(0, 0, 0)
+                local voidPos = Vector3.new(999999999999, 99999999999, 999999999999)
+                local OldCFrame = MyRoot.CFrame
+                local OldVelocity = MyRoot.Velocity
+                local OldRotVelocity = MyRoot.RotVelocity
+                
+                MyRoot.CFrame = CFrame.new(voidPos)
+                MyRoot.Velocity = Vector3.new(0, 0, 0)
+                MyRoot.RotVelocity = Vector3.new(0, 0, 0)
                 
                 RunService:BindToRenderStep("RestoreVoid", 101, function()
-                    root.CFrame = oldCF
-                    root.Velocity = oldVel
-                    root.RotVelocity = oldRot
+                    MyRoot.CFrame = OldCFrame
+                    MyRoot.Velocity = OldVelocity
+                    MyRoot.RotVelocity = OldRotVelocity
                     RunService:UnbindFromRenderStep("RestoreVoid")
                 end)
                 
-                task.wait(VoidDelay)
-            else
-                task.wait(0.5)
+                task.wait(self.VoidDelay)
             end
-        end
-    end)
-end
-
--- Stop Void Spam
-function StopVoidSpam()
-    if not VoidActive then return end
-    VoidActive = false
-    
-    if VoidTask then
-        task.cancel(VoidTask)
-        VoidTask = nil
+        end)
     end
-    
-    RunService:UnbindFromRenderStep("RestoreVoid")
-    print("Void Spam Stopped!")
+
+    function RageBot:StopVoidSpam()
+        if not self.VoidSpamActive then return end
+        self.VoidSpamActive = false
+        
+        if self.VoidTask then
+            task.cancel(self.VoidTask)
+            self.VoidTask = nil
+        end
+        
+        RunService:UnbindFromRenderStep("RestoreVoid")
+        print("Void Spam Stopped!")
+    end
+
+    function RageBot:UpdateVoidSpam(rageDelay, voidDelay)
+        if not self.VoidSpamActive then return end
+        self.RageDelay = rageDelay or self.RageDelay
+        self.VoidDelay = voidDelay or self.VoidDelay
+        print("Updated: Rage " .. self.RageDelay .. "s, Void " .. self.VoidDelay .. "s")
+    end
+
+    function RageBot:ToggleRageMode()
+        if self.Active then
+            self:Stop()
+        else
+            self:Start()
+        end
+        return self.Active
+    end
+
+    function RageBot:Shutdown()
+        self:Stop()
+        self:StopVoidSpam()
+        self.OriginalFuncs = {}
+        print("RageBot Shutdown Complete!")
+    end
+
+    RageBot:Initialize()
 end
 
--- Update Void Spam
-function UpdateVoidSpam()
-    print("Updated: Rage " .. RageDelay .. "s, Void " .. VoidDelay .. "s")
+_G.ToggleRage = function()
+    return Env.RageBot:ToggleRageMode()
 end
 
--- Auto stop on game exit
+_G.ForceStopRage = function()
+    if Env and Env.RageBot then
+        pcall(function()
+            Env.RageBot:Shutdown()
+            Env.RageBot = nil
+            print("RageBot Force Stopped!")
+        end)
+    end
+end
+
+-- 게임 나가면 자동 종료
 pcall(function()
     LocalPlayer.OnTeleport:Connect(function()
-        StopRageBot()
-        StopVoidSpam()
+        if Env.RageBot then
+            Env.RageBot:Shutdown()
+            Env.RageBot = nil
+        end
     end)
 end)
 
--- Force stop function
-_G.ForceStop = function()
-    StopRageBot()
-    StopVoidSpam()
-    print("All stopped!")
-end
-
-print("RageBot + Void Spam Loaded!")
-print("Use UI to control. Type _G.ForceStop() to force stop.")
+print("All Loaded! Use UI to control RageBot and Void Spam.")
+print("RightShift to open menu.")
