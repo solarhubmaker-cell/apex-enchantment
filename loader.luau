@@ -8,7 +8,7 @@ local Options = Library.Options
 local Toggles = Library.Toggles
 
 local Window = Library:CreateWindow({
-	Title = "Title",
+	Title = "Apex Enchantment",
 	Center = true,
 	AutoShow = true,
 	Resizable = true,
