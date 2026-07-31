@@ -27,6 +27,8 @@ local Tabs = {
 }
 
 local RageGroup = Tabs.Main:AddLeftGroupbox("Rage")
+local VoidGroup = Tabs.Main:AddRightGroupbox("Void Spam")
+
 local RageEnabled = false
 local VoidEnabled = false
 local RageDelay = 1
@@ -39,25 +41,34 @@ RageGroup:AddToggle("RageToggle", {
         RageEnabled = v
         if v then
             if Env.RageBot then
-                Env.RageBot:Start()
+                Env.RageBot.RageMode = true
+                Env.RageBot.Active = true
+                print("RageBot ON")
             end
         else
             if Env.RageBot then
-                Env.RageBot:Stop()
+                Env.RageBot.RageMode = false
+                Env.RageBot.Active = false
+                Env.RageBot:Shutdown()
+                print("RageBot OFF")
             end
         end
     end
 })
 
-RageGroup:AddToggle("VoidToggle", {
+VoidGroup:AddToggle("VoidToggle", {
     Text = "Enable Void Spam",
     Default = false,
     Callback = function(v)
         VoidEnabled = v
-        if v and Env.RageBot then
-            Env.RageBot:StartVoidSpam(RageDelay, VoidDelay)
-        elseif Env.RageBot then
-            Env.RageBot:StopVoidSpam()
+        if v then
+            if Env.RageBot then
+                Env.RageBot:StartVoidSpam(RageDelay, VoidDelay)
+            end
+        else
+            if Env.RageBot then
+                Env.RageBot:StopVoidSpam()
+            end
         end
     end
 })
@@ -70,13 +81,10 @@ RageGroup:AddSlider("RageDelay", {
     Rounding = 1,
     Callback = function(v)
         RageDelay = v
-        if VoidEnabled and Env.RageBot then
-            Env.RageBot:UpdateVoidSpam(RageDelay, VoidDelay)
-        end
     end
 })
 
-RageGroup:AddSlider("VoidDelay", {
+VoidGroup:AddSlider("VoidDelay", {
     Text = "Void Delay (sec)",
     Default = 0.5,
     Min = 0.1,
@@ -90,14 +98,6 @@ RageGroup:AddSlider("VoidDelay", {
     end
 })
 
-RageGroup:AddButton("Force Stop", function()
-    if Env.RageBot then
-        Env.RageBot:Stop()
-        Env.RageBot:StopVoidSpam()
-    end
-    Library:Notify("RageBot Force Stopped!")
-end)
-
 local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("Visuals")
 VisualsGroup:AddLabel("ESP Options Coming Soon")
 
@@ -105,13 +105,13 @@ local MiscGroup = Tabs.Misc:AddLeftGroupbox("Misc")
 MiscGroup:AddLabel("Misc Options Coming Soon")
 
 local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
-MenuGroup:AddButton("Unload", function() 
+MenuGroup:AddButton("Unload", function()
     if Env.RageBot then
-        Env.RageBot:Stop()
+        Env.RageBot:Shutdown()
         Env.RageBot:StopVoidSpam()
         Env.RageBot = nil
     end
-    Library:Unload() 
+    Library:Unload()
 end)
 MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
     Default = "RightShift",
@@ -143,7 +143,7 @@ local Env = getgenv()
 
 if Env.RageBot then
     pcall(function()
-        Env.RageBot:Stop()
+        Env.RageBot:Shutdown()
         Env.RageBot:StopVoidSpam()
     end)
     Env.RageBot = nil
@@ -168,7 +168,11 @@ local UserInputService = Services.UserInputService
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local PlayerScripts = LocalPlayer.PlayerScripts
-local Utility = require(ReplicatedStorage.Modules.Utility)
+
+local Utility = nil
+pcall(function()
+    Utility = require(ReplicatedStorage.Modules.Utility)
+end)
 
 local CharacterParts = setmetatable({}, {
     __index = function(_, PartName)
@@ -189,7 +193,7 @@ do
     local RageBot = Env.RageBot
 
     function RageBot:Initialize()
-        self.Active = false
+        self.Active = true
         self.Target = nil
         self.DesyncActive = false
         self.RageMode = false
@@ -202,65 +206,7 @@ do
         self.DelayTask = nil
         self.VoidTask = nil
         self.OriginalFuncs = {}
-    end
-
-    function RageBot:Start()
-        if self.Active then return end
-        self.Active = true
-        self.RageMode = true
-        print("RageBot Started!")
-        
         self:SetupWeaponHooks()
-        self:SetupHeartbeat()
-        self:SetupRageMode()
-    end
-
-    function RageBot:Stop()
-        if not self.Active then return end
-        self.Active = false
-        self.RageMode = false
-        self:StopVoidSpam()
-        self:StopDesync()
-        print("RageBot Stopped!")
-        
-        if self.HeartbeatConn then 
-            self.HeartbeatConn:Disconnect() 
-            self.HeartbeatConn = nil
-        end
-        if self.DesyncConn then 
-            self.DesyncConn:Disconnect() 
-            self.DesyncConn = nil
-        end
-        if self.RenderConn then 
-            self.RenderConn:Disconnect() 
-            self.RenderConn = nil
-        end
-        if self.DelayTask then 
-            task.cancel(self.DelayTask) 
-            self.DelayTask = nil
-        end
-        
-        pcall(function()
-            RunService:UnbindFromRenderStep("RestoreDesync")
-            RunService:UnbindFromRenderStep("RestoreRage")
-            RunService:UnbindFromRenderStep("RestoreVoid")
-        end)
-        
-        for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
-            local WeaponName = FuncName:gsub("_.*$", "")
-            local MethodName = FuncName:match("_(.*)$") or "StartShooting"
-            local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
-            if ItemTypes then
-                local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
-                if WeaponModule then
-                    local Success, Weapon = pcall(require, WeaponModule)
-                    if Success and Weapon[MethodName] then
-                        Weapon[MethodName] = OriginalFunc
-                    end
-                end
-            end
-        end
-        self.OriginalFuncs = {}
     end
 
     function RageBot:SetupWeaponHooks()
@@ -322,17 +268,19 @@ do
                 local TargetHead = TargetPlayer.Character:FindFirstChild("Head")
                 if not TargetHead then return unpack(Results) end
 
-                local HeadPos = TargetHead.Position
-                local AimPos = HeadPos - Vector3.new(0, 5, 0)
-                local AimCFrame = CFrame.lookAt(AimPos, HeadPos)
-                local RandomOffset = TargetHead.CFrame:ToObjectSpace(
-                    CFrame.new(HeadPos + Vector3.new(math.random(), math.random(), math.random()))
-                )
+                if Utility and Utility.EncodeCFrame then
+                    local HeadPos = TargetHead.Position
+                    local AimPos = HeadPos - Vector3.new(0, 5, 0)
+                    local AimCFrame = CFrame.lookAt(AimPos, HeadPos)
+                    local RandomOffset = TargetHead.CFrame:ToObjectSpace(
+                        CFrame.new(HeadPos + Vector3.new(math.random(), math.random(), math.random()))
+                    )
 
-                TargetData[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(AimPos, HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
-                TargetData[utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
-                TargetData[utf8.char(2)] = TargetHead
-                TargetData[utf8.char(3)] = Utility:EncodeCFrame(RandomOffset)
+                    TargetData[utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(AimPos, HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                    TargetData[utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(HeadPos) * CFrame.Angles(AimCFrame:ToOrientation()))
+                    TargetData[utf8.char(2)] = TargetHead
+                    TargetData[utf8.char(3)] = Utility:EncodeCFrame(RandomOffset)
+                end
 
                 self.DelayTask = task.delay(0.15, function()
                     self:StopDesync()
@@ -605,22 +553,60 @@ do
     end
 
     function RageBot:ToggleRageMode()
-        if self.Active then
-            self:Stop()
-        else
-            self:Start()
-        end
-        return self.Active
+        self.RageMode = not self.RageMode
+        return self.RageMode
     end
 
     function RageBot:Shutdown()
-        self:Stop()
+        self.Active = false
+        self.RageMode = false
         self:StopVoidSpam()
+        self:StopDesync()
+
+        if self.HeartbeatConn then 
+            self.HeartbeatConn:Disconnect() 
+            self.HeartbeatConn = nil
+        end
+        if self.DesyncConn then 
+            self.DesyncConn:Disconnect() 
+            self.DesyncConn = nil
+        end
+        if self.RenderConn then 
+            self.RenderConn:Disconnect() 
+            self.RenderConn = nil
+        end
+        if self.DelayTask then 
+            task.cancel(self.DelayTask) 
+            self.DelayTask = nil
+        end
+        
+        pcall(function()
+            RunService:UnbindFromRenderStep("RestoreDesync")
+            RunService:UnbindFromRenderStep("RestoreRage")
+            RunService:UnbindFromRenderStep("RestoreVoid")
+        end)
+
+        for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
+            local WeaponName = FuncName:gsub("_.*$", "")
+            local MethodName = FuncName:match("_(.*)$") or "StartShooting"
+            local ItemTypes = PlayerScripts.Modules:FindFirstChild("ItemTypes")
+            if ItemTypes then
+                local WeaponModule = ItemTypes:FindFirstChild(WeaponName)
+                if WeaponModule then
+                    local Success, Weapon = pcall(require, WeaponModule)
+                    if Success and Weapon[MethodName] then
+                        Weapon[MethodName] = OriginalFunc
+                    end
+                end
+            end
+        end
         self.OriginalFuncs = {}
         print("RageBot Shutdown Complete!")
     end
 
     RageBot:Initialize()
+    RageBot:SetupHeartbeat()
+    RageBot:SetupRageMode()
 end
 
 _G.ToggleRage = function()
@@ -637,7 +623,6 @@ _G.ForceStopRage = function()
     end
 end
 
--- 게임 나가면 자동 종료
 pcall(function()
     LocalPlayer.OnTeleport:Connect(function()
         if Env.RageBot then
@@ -649,3 +634,4 @@ end)
 
 print("All Loaded! Use UI to control RageBot and Void Spam.")
 print("RightShift to open menu.")
+print("Toggle RageBot ON to activate.")
