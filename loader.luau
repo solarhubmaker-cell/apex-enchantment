@@ -128,7 +128,9 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
 SaveManager:LoadAutoloadConfig()
-
+-- ============================================
+-- RAGEBOT + VOID SPAM CODE
+-- ============================================
 
 local Services = setmetatable({}, {
     __index = function(_, ServiceName)
@@ -526,11 +528,24 @@ do
     function RageBot:Shutdown()
         self.Active = false
         self:StopVoidSpam()
+        self:StopDesync()
 
-        if self.HeartbeatConn then self.HeartbeatConn:Disconnect() end
-        if self.DesyncConn then self.DesyncConn:Disconnect() end
-        if self.RenderConn then self.RenderConn:Disconnect() end
-        if self.DelayTask then task.cancel(self.DelayTask) end
+        if self.HeartbeatConn then 
+            self.HeartbeatConn:Disconnect() 
+            self.HeartbeatConn = nil
+        end
+        if self.DesyncConn then 
+            self.DesyncConn:Disconnect() 
+            self.DesyncConn = nil
+        end
+        if self.RenderConn then 
+            self.RenderConn:Disconnect() 
+            self.RenderConn = nil
+        end
+        if self.DelayTask then 
+            task.cancel(self.DelayTask) 
+            self.DelayTask = nil
+        end
 
         for FuncName, OriginalFunc in pairs(self.OriginalFuncs) do
             local WeaponName = FuncName:gsub("_.*$", "")
@@ -547,6 +562,8 @@ do
                 end
             end
         end
+        self.OriginalFuncs = {}
+        print("RageBot Shutdown Complete!")
     end
 
     RageBot:Initialize()
@@ -558,5 +575,17 @@ _G.ToggleRage = function()
     return Env.RageBot:ToggleRageMode()
 end
 
+_G.ForceStopRage = function()
+    if Env and Env.RageBot then
+        pcall(function()
+            Env.RageBot:Shutdown()
+            Env.RageBot.Active = false
+            Env.RageBot.RageMode = false
+            print("RageBot Force Stopped!")
+        end)
+    end
+end
+
 print("RageBot + Void Spam Loaded!")
 print("Use UI to control delays")
+print("Type _G.ForceStopRage() to force stop")
