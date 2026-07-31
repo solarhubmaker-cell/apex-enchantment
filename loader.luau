@@ -131,6 +131,9 @@ SaveManager:LoadAutoloadConfig()
 -- ============================================
 -- RAGEBOT + VOID SPAM CODE
 -- ============================================
+if getgenv(). RageBot and getgenv(). RageBot., getgenv().RageBot: Shutdown() getgenv(). RageBot. Active = false getgenv(). RageBot. RageMode = false print("Previous RageBot stopped!")
+
+end
 
 local Services = setmetatable({}, {
     __index = function(_, ServiceName)
