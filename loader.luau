@@ -1,131 +1,27 @@
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- ============================================
+-- RIVALS 안티치트 바이패스 (최소 버전)
+-- ============================================
+
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
-local RunService = game:GetService("RunService")
+local LocalPlayer = game:GetService("Players").LocalPlayer
 
--- ============================================
--- 1. 기본적인 우회 (가장 안전하고 빠름)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        -- ReplicatedFirst에서 의심스러운 스크립트 비활성화
-        for _, v in ipairs(ReplicatedFirst:GetDescendants()) do
-            if v:IsA("LocalScript") or v:IsA("ModuleScript") then
-                local name = v.Name:lower()
-                local keywords = {"anticheat", "ac", "detection", "ban", "kick", "security", "moderation", "admin"}
-                for _, kw in ipairs(keywords) do
-                    if name:find(kw) then
-                        v.Disabled = true
-                        break
-                    end
-                end
-            end
+-- ReplicatedFirst 스크립트 비활성화
+pcall(function()
+    for _, v in ipairs(ReplicatedFirst:GetDescendants()) do
+        if v:IsA("LocalScript") and v.Name:lower():find("anticheat") then
+            v.Disabled = true
         end
-    end)
+    end
 end)
 
--- ============================================
--- 2. RemoteEvent 가짜 생성 (우회용)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        local fake = Instance.new("RemoteEvent")
-        fake.Name = "ClientAlert"
-        fake.Parent = LocalPlayer
-    end)
+-- 가짜 RemoteEvent 생성
+pcall(function()
+    local fake = Instance.new("RemoteEvent")
+    fake.Name = "ClientAlert"
+    fake.Parent = LocalPlayer
 end)
 
--- ============================================
--- 3. NetworkClient 감시 (최적화)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        local nc = game:GetService("NetworkClient")
-        nc.ChildAdded:Connect(function(child)
-            pcall(function()
-                if child.Name:lower():find("anticheat") or child.Name:lower():find("detection") then
-                    child:Destroy()
-                end
-            end)
-        end)
-    end)
-end)
-
--- ============================================
--- 4. getgc() 최적화 (멈춤 방지)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        local count = 0
-        local maxCount = 300  -- 최대 300개만 검사 (멈춤 방지)
-        local gc = getgc(false)
-        
-        for i = 1, #gc do
-            if count >= maxCount then break end
-            
-            local f = gc[i]
-            if type(f) == "function" then
-                local ok, env = pcall(getfenv, f)
-                if ok and type(env) == "table" then
-                    local scr = rawget(env, "script")
-                    if scr and (scr:IsA("LocalScript") or scr:IsA("ModuleScript")) then
-                        local name = scr.Name:lower()
-                        if name:find("anticheat") or name:find("detection") or name:find("ban") or name:find("kick") then
-                            pcall(function() hookfunction(f, function() end) end)
-                            count = count + 1
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end)
-
--- ============================================
--- 5. __namecall 후킹 (간단하게)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local method = getnamecallmethod()
-            
-            -- Kick/Shutdown 차단
-            if not checkcaller() then
-                if method == "Kick" or method == "kick" or method == "Shutdown" then
-                    return nil
-                end
-                if method == "FireServer" and self and self.Name == "ClientAlert" then
-                    return nil
-                end
-            end
-            
-            return oldNamecall(self, ...)
-        end)
-    end)
-end)
-
--- ============================================
--- 6. LoadingScreen 제거 (빠르게)
--- ============================================
-
-task.spawn(function()
-    pcall(function()
-        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-        if playerGui then
-            local loading = playerGui:FindFirstChild("LoadingScreen")
-            if loading then
-                loading:Destroy()
-            end
-        end
-    end)
-end)
-
-print("✅ Rivals Anti-Cheat Bypass Loaded (Optimized)")
+print("✅ Anti-Cheat Bypass (Minimal)")
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
