@@ -122,6 +122,33 @@ RageGroup:AddSlider("AccuracySlider", {
 })
 
 -- ============================================
+-- AUTO FIRE (Rage칸 맨아래 추가)
+-- ============================================
+
+local AutoFireEnabled = false
+
+RageGroup:AddToggle("AutoFireToggle", {
+    Text = "Auto Fire",
+    Default = false,
+    Callback = function(v)
+        AutoFireEnabled = v
+        _G.AutoFire = v
+        print("Auto Fire:", v and "ON" or "OFF")
+    end
+})
+
+RageGroup:AddSlider("AutoFireDistance", {
+    Text = "Auto Fire Distance",
+    Default = 99999,
+    Min = 100,
+    Max = 99999,
+    Rounding = 0,
+    Callback = function(v)
+        _G.FOV_Radius = v
+    end
+})
+
+-- ============================================
 -- RAPID FIRE
 -- ============================================
 
@@ -595,6 +622,53 @@ SaveManager:LoadAutoloadConfig()
 print("UI Loaded! Loading RageBot...")
 
 -- ============================================
+-- AUTO FIRE CORE
+-- ============================================
+
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+_G.AutoFire = false
+_G.FOV_Radius = 99999
+
+local function GetTargetInFOV()
+    local closestTarget = nil
+    local shortestDistance = _G.FOV_Radius
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
+            if targetPart then
+                local distance = (myRoot.Position - targetPart.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestTarget = player
+                end
+            end
+        end
+    end
+    return closestTarget
+end
+
+task.spawn(function()
+    print("Auto Fire 스크립트가 실행되었습니다.")
+    
+    while task.wait() do
+        if _G.AutoFire then
+            local target = GetTargetInFOV()
+            
+            if target then
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+            end
+        end
+    end
+end)
+
+-- ============================================
 -- RAGEBOT CORE (당신이 보낸 코드 - 그대로)
 -- ============================================
 
@@ -819,5 +893,5 @@ _G.ForceStopRage = function()
 end
 
 print("All Loaded!")
-print("RageBot, Void Spam, Rapid Fire, Skin Unlocker - ON/OFF from UI")
+print("RageBot, Void Spam, Rapid Fire, Skin Unlocker, Auto Fire - ON/OFF from UI")
 print("RightShift to open menu")
