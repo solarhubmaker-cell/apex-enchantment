@@ -1,27 +1,3 @@
--- ============================================
--- RIVALS 안티치트 바이패스 (최소 버전)
--- ============================================
-
-local ReplicatedFirst = game:GetService("ReplicatedFirst")
-local LocalPlayer = game:GetService("Players").LocalPlayer
-
--- ReplicatedFirst 스크립트 비활성화
-pcall(function()
-    for _, v in ipairs(ReplicatedFirst:GetDescendants()) do
-        if v:IsA("LocalScript") and v.Name:lower():find("anticheat") then
-            v.Disabled = true
-        end
-    end
-end)
-
--- 가짜 RemoteEvent 생성
-pcall(function()
-    local fake = Instance.new("RemoteEvent")
-    fake.Name = "ClientAlert"
-    fake.Parent = LocalPlayer
-end)
-
-print("✅ Anti-Cheat Bypass (Minimal)")
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
