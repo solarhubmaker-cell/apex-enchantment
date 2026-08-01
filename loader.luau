@@ -1,46 +1,50 @@
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-local Camera = workspace.CurrentCamera
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 
+-- 방법 1: 간단한 우회 (가장 안정적)
 task.spawn(function()
     pcall(function()
-        local rf = game:GetService("ReplicatedFirst")
-        local lp = Players.LocalPlayer
-
-        local fake = Instance.new("RemoteEvent")
-        fake.Name = "ClientAlert"
-        fake.Parent = lp
-
-        local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-            local m = getnamecallmethod()
-            if not checkcaller() then
-                if m == "WaitForChild" and select(1, ...) == "ClientAlert" then return fake end
-                if self == lp and (m == "Kick" or m == "kick") then return end
-                if m:lower():find("kick") or m == "Shutdown" then return end
-                if m == "FireServer" and self == fake then return end
+        -- 오디오 파일 교체 (일부 우회)
+        local audio = ReplicatedFirst:FindFirstChild("Audio")
+        if audio then
+            for _, v in ipairs(audio:GetChildren()) do
+                if v:IsA("Sound") then
+                    v:Destroy()
+                end
             end
-            return oldNamecall(self, ...)
-        end)
+        end
+    end)
+end)
 
-        local ls3 = rf:WaitForChild("LocalScript3", 10)
-        for _, f in getgc(false) do
+-- 방법 2: LocalScript 비활성화 (안전하게)
+task.spawn(function()
+    pcall(function()
+        for _, v in ipairs(ReplicatedFirst:GetDescendants()) do
+            if v:IsA("LocalScript") and v.Name:lower():find("anticheat") then
+                v.Disabled = true
+            end
+        end
+    end)
+end)
+
+-- 방법 3: getgc() 최적화 (멈춤 방지)
+task.spawn(function()
+    pcall(function()
+        local count = 0
+        local gc = getgc(false)
+        for i = 1, #gc do
+            if count > 500 then break end -- 최대 500개만 검사
+            local f = gc[i]
             if typeof(f) == "function" then
-                local ok, e = pcall(getfenv, f)
-                if ok and e then
-                    local scr = rawget(e, "script")
-                    if scr and (scr == ls3 or tostring(scr):find("LoadingScreen")) then
-                        local ok2, cs = pcall(debug.getconstants, f)
-                        if ok2 then
-                            for _, k in cs do
-                                if typeof(k) == "string" and (k:find("TakeTheL") or k:find("ban") or k:find("kick")) then
-                                    hookfunction(f, function() end)
-                                    break
-                                end
-                            end
+                local ok, env = pcall(getfenv, f)
+                if ok and env then
+                    local scr = rawget(env, "script")
+                    if scr and scr:IsA("LocalScript") then
+                        local name = scr.Name:lower()
+                        if name:find("anticheat") or name:find("ban") or name:find("kick") then
+                            pcall(function() hookfunction(f, function() end) end)
+                            count = count + 1
                         end
                     end
                 end
@@ -48,6 +52,7 @@ task.spawn(function()
         end
     end)
 end)
+
 
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
