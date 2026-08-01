@@ -125,7 +125,8 @@ task.spawn(function()
     end)
 end)
 
-print("✅ Rivals Anti-Cheat Bypass Loaded (Optimized)")local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
+print("✅ Rivals Anti-Cheat Bypass Loaded (Optimized)")
+local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
