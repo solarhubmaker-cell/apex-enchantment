@@ -1,3 +1,87 @@
+local Services = setmetatable({}, {__index = function(_, k) return game:GetService(k) end})
+
+local Players = Services.Players
+local LocalPlayer = Players.LocalPlayer
+
+local function SafeDestroy(obj)
+    if typeof(obj) == "Instance" then
+        pcall(function()
+            obj:Destroy()
+        end)
+    end
+end
+
+local function DeepCleanup()
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v.Name == "ClientAlert" or v.Name == "LocalScript3" then
+            SafeDestroy(v)
+        end
+    end
+    
+    for _, v in ipairs(LocalPlayer.PlayerGui:GetDescendants()) do
+        if v.Name == "ClientAlert" or v.Name == "LocalScript3" then
+            SafeDestroy(v)
+        end
+    end
+    
+    for _, v in ipairs(LocalPlayer:FindFirstChild("PlayerScripts") and LocalPlayer.PlayerScripts:GetDescendants() or {}) do
+        if v.Name == "ClientAlert" or v.Name == "LocalScript3" then
+            SafeDestroy(v)
+        end
+    end
+end
+
+local OldNamecall
+OldNamecall = hookmetamethod(game, "__namecall", function(Self, ...)
+    local Method = getnamecallmethod()
+    local Args = {...}
+    
+    if Method == "Kick" or Method == "kick" then
+        print("Kick blocked")
+        return
+    end
+    
+    if Method == "FireServer" then
+        -- Optional: Block common kick remote patterns
+        local RemoteName = tostring(Self.Name):lower()
+        if RemoteName:find("kick") or RemoteName:find("alert") or RemoteName:find("ban") then
+            print("Blocked suspicious remote: " .. Self.Name)
+            return
+        end
+    end
+    
+    return OldNamecall(Self, ...)
+end)
+
+local OldDisconnect = hookfunction(game.Players.LocalPlayer.Kick, function() 
+    print("Bypassed") 
+end)
+
+local mt = getrawmetatable(game)
+local old_index = mt.__index
+
+setreadonly(mt, false)
+
+mt.__index = newcclosure(function(self, key)
+    if self == LocalPlayer and (key == "Kick" or key == "kick") then
+        return function() print("🚫 Kick attempt blocked via __index!") end
+    end
+    return old_index(self, key)
+end)
+
+setreadonly(mt, true)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        DeepCleanup()
+        local alert = Services.ReplicatedStorage:FindFirstChild("ClientAlert", true) or 
+                     Services.StarterGui:FindFirstChild("ClientAlert", true)
+        if alert then SafeDestroy(alert) end
+    end
+end)
+DeepCleanup()
+
+print("Bypassed")
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
