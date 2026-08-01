@@ -48,7 +48,7 @@ task.spawn(function()
         end
     end)
 end)
-loadstring(game:HttpGet("https://pastefy.app/EHeqdtQs/raw))()
+
 local repo = "https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/"
 
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
