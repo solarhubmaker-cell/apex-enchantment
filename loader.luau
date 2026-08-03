@@ -1,3 +1,4 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/solarhubmaker-cell/LUMIN-HUB/refs/heads/main/loader.luau"))()
 getgenv().UC_LOADED = true;
 
 if (identifyexecutor() == "Wave") then
