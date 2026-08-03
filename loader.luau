@@ -10,5 +10,5 @@ if (identifyexecutor() == "Wave") then
 end;
 
 if (game.GameId == 6035872082) then
-    loadstring(game:HttpGet("https://pastebin.com/raw/Un8mPB7y"))();
+    loadstring(game:HttpGet("https://pastebin.com/raw/kCnUz3x4"))();
 end;
